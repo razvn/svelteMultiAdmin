@@ -1,0 +1,20 @@
+{
+	"publicUrl": "http://portal.localhost:3000",
+	"cookieSecret": "dev-secret-change-me-at-least-32-characters",
+	"auth": { "type": "local", "usersFile": "./var/users.json", "bootstrapAdmin": "admin" },
+	"access": [
+		{
+			"match": { "group": "platform-admins" },
+			"grants": { "myadmin": true, "redisadmin": { "role": "admin" }, "userAdmin": true }
+		},
+		{
+			"match": { "group": "devs" },
+			"grants": { "redisadmin": { "role": "rw", "servers": ["Dev redis1"] } }
+		},
+		{ "match": { "group": "*" }, "grants": { "redisadmin": { "role": "ro" } } }
+	],
+	"apps": {
+		"myadmin": { "publicUrl": "http://myadmin.localhost:3000", "config": "./myadmin.json" },
+		"redisadmin": { "publicUrl": "http://redisadmin.localhost:3000", "config": "./redisadmin.json" }
+	}
+}

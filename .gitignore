@@ -1,0 +1,10 @@
+node_modules
+.svelte-kit
+build
+dist
+config.json
+multiadmin.json
+myadmin.json
+redisadmin.json
+.env
+.DS_Store

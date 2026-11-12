@@ -1,0 +1,251 @@
+# svelteMultiAdmin (portal + svelteMyAdmin + svelteRedisAdmin) in its own namespace.
+# Local accounts, Kubernetes server discovery and RBAC checks for both apps. See deploy/kubernetes/README.md.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tools
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: multiadmin
+  namespace: tools
+---
+# SubjectAccessReviews of both apps: "may this person use the database of that namespace?"
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: multiadmin-auth-delegator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:auth-delegator
+subjects:
+  - kind: ServiceAccount
+    name: multiadmin
+    namespace: tools
+---
+# Discovery of both apps: list namespaces and Services, read only the Secrets named redis-auth and mysql-auth.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: multiadmin-discovery
+rules:
+  - apiGroups: ['']
+    resources: ['namespaces', 'services']
+    verbs: ['list']
+  - apiGroups: ['']
+    resources: ['secrets']
+    resourceNames: ['redis-auth', 'mysql-auth']
+    verbs: ['get']
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: multiadmin-discovery
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: multiadmin-discovery
+subjects:
+  - kind: ServiceAccount
+    name: multiadmin
+    namespace: tools
+---
+# The portal's own config holds the cookie secret, so it is a Secret. The auth block of the two apps is
+# written by the portal when it starts them: these two files only describe their servers and discovery.
+# Hostnames: three names for one Ingress (see the end of this file). For a local try-out with
+# `kubectl port-forward`, `*.localhost` names work in a browser (see deploy/kubernetes/README.md).
+apiVersion: v1
+kind: Secret
+metadata:
+  name: multiadmin
+  namespace: tools
+type: Opaque
+stringData:
+  # Change both values. The bootstrap password only creates the first account (admin); change it in the portal.
+  bootstrap-password: change-me-now
+  multiadmin.json: |
+    {
+      "publicUrl": "http://portal.localhost:8080",
+      "cookieSecret": "change-me-change-me-change-me-change-me",
+      "auth": { "type": "local", "usersFile": "/data/users.json", "bootstrapAdmin": "admin" },
+      "access": [
+        {
+          "match": { "group": "platform-admins" },
+          "grants": { "myadmin": true, "redisadmin": { "role": "admin" }, "userAdmin": true }
+        },
+        { "match": { "group": "devs" }, "grants": { "redisadmin": { "role": "ro" } } }
+      ],
+      "apps": {
+        "myadmin": { "publicUrl": "http://myadmin.localhost:8080", "config": "/config/myadmin.json" },
+        "redisadmin": { "publicUrl": "http://redisadmin.localhost:8080", "config": "/config/redisadmin.json" }
+      }
+    }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: multiadmin-apps
+  namespace: tools
+data:
+  # Servers found in the review namespaces (label env=review). A static MySQL server would need an explicit
+  # user and password: put such a file in the Secret above instead. AuditLog writes one JSON line per action
+  # to stdout (`kubectl logs`), with the person from the portal.
+  myadmin.json: |
+    {
+      "blowfish_secret": "change-me-change-me-change-me-change-me",
+      "AuditLog": { "target": "stdout" },
+      "Servers": [],
+      "ServerDiscovery": {
+        "type": "kubernetes",
+        "namespaceSelector": "env=review",
+        "serviceSelector": "app.kubernetes.io/name=mysql",
+        "verbose": "{namespace}: {annotation:gitlab.com/mr-title}",
+        "secret": { "name": "mysql-auth", "passwordKey": "mysql-root-password" },
+        "authorize": { "userPrefix": "oidc:", "groupsPrefix": "oidc:" }
+      }
+    }
+  redisadmin.json: |
+    {
+      "Servers": [],
+      "ServerDiscovery": {
+        "type": "kubernetes",
+        "namespaceSelector": "env=review",
+        "serviceSelector": "app.kubernetes.io/name=redis",
+        "name": "{namespace}: {annotation:gitlab.com/mr-title}",
+        "secret": { "name": "redis-auth", "passwordKey": "redis-password" },
+        "authorize": { "userPrefix": "oidc:", "groupsPrefix": "oidc:" }
+      },
+      "AuditLog": { "target": "stdout" }
+    }
+---
+# Local accounts (users.json). Sessions are in memory, but the accounts must survive restarts.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: multiadmin-data
+  namespace: tools
+spec:
+  accessModes: ['ReadWriteOnce']
+  resources:
+    requests:
+      storage: 100Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: multiadmin
+  namespace: tools
+spec:
+  # One pod only: sessions and sign-in tickets are in memory. Recreate, so two pods never overlap during an update.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: multiadmin
+  template:
+    metadata:
+      labels:
+        app: multiadmin
+    spec:
+      serviceAccountName: multiadmin
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+        - name: app
+          image: multiadmin:dev
+          # The image built locally (`docker build -t multiadmin:dev .`); use your registry's otherwise.
+          imagePullPolicy: Never
+          env:
+            # The ingress terminates TLS and says so in these headers: the portal derives its origin from them
+            # (without them every form POST fails SvelteKit's CSRF check). Already set in the image; explicit here.
+            - name: PROTOCOL_HEADER
+              value: x-forwarded-proto
+            - name: HOST_HEADER
+              value: x-forwarded-host
+            - name: MULTIADMIN_CONFIG
+              value: /secrets/multiadmin.json
+            - name: MULTIADMIN_BOOTSTRAP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: multiadmin
+                  key: bootstrap-password
+            # Uploads of svelteMyAdmin's import page (the portal itself accepts any size).
+            - name: MULTIADMIN_MYADMIN_BODY_SIZE_LIMIT
+              value: 512M
+          ports:
+            - name: http
+              containerPort: 3000
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+          volumeMounts:
+            - name: secrets
+              mountPath: /secrets
+              readOnly: true
+            - name: apps
+              mountPath: /config
+              readOnly: true
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: secrets
+          secret:
+            secretName: multiadmin
+            items:
+              - key: multiadmin.json
+                path: multiadmin.json
+        - name: apps
+          configMap:
+            name: multiadmin-apps
+        - name: data
+          persistentVolumeClaim:
+            claimName: multiadmin-data
+---
+# ClusterIP only: reachable through the ingress alone.
+apiVersion: v1
+kind: Service
+metadata:
+  name: multiadmin
+  namespace: tools
+spec:
+  selector:
+    app: multiadmin
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+---
+# Three hostnames, one backend: the portal tells them apart by Host. Set your real names (and TLS) here and in
+# the Secret's publicUrl values. With an SSO proxy in front (auth type trusted-header), add its auth-url and
+# auth-signin annotations; the proxy must cover all three hosts.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: multiadmin
+  namespace: tools
+spec:
+  rules:
+    - host: portal.localhost
+      http: &backend
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: multiadmin
+                port:
+                  name: http
+    - host: myadmin.localhost
+      http: *backend
+    - host: redisadmin.localhost
+      http: *backend

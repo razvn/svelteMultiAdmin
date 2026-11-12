@@ -1,0 +1,15 @@
+{
+	"Sign in": "Iniciar sesión",
+	"Username": "Nombre de usuario",
+	"Password": "Contraseña",
+	"Signing in…": "Iniciando sesión…",
+	"Sign in with your organization account": "Iniciar sesión con la cuenta de su organización",
+	"Use your organization account.": "Use la cuenta de su organización.",
+	"Use your portal account.": "Use su cuenta del portal.",
+	"One sign-in for your MySQL and Redis administration.": "Un solo inicio de sesión para su administración de MySQL y Redis.",
+	"Wrong username or password.": "Nombre de usuario o contraseña incorrectos.",
+	"Too many attempts. Try again in a few minutes.": "Demasiados intentos. Inténtelo de nuevo en unos minutos.",
+	"Authentication required: sign in through your organization proxy.": "Autenticación requerida: inicie sesión a través del proxy de su organización.",
+	"Sign-in failed. Go back and try again.": "Error al iniciar sesión. Vuelva atrás e inténtelo de nuevo.",
+	"The identity provider is not reachable right now.": "El proveedor de identidad no está disponible en este momento."
+}
