@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Kubernetes - svelteMultiAdmin docs</title>
+		<meta
+			name="description"
+			content="Run svelteMultiAdmin on Kubernetes with the provided manifest: RBAC for discovery and access checks, config, Deployment and Ingress."
+		/>
+		<meta name="color-scheme" content="light dark" />
+		<meta name="theme-color" content="#6366f1" />
+		<link rel="icon" type="image/svg+xml" href="../assets/favicon.svg" />
+		<link rel="canonical" href="https://razvn.github.io/svelteMultiAdmin/docs/kubernetes.html" />
+		<link rel="preconnect" href="https://fonts.googleapis.com" />
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+		<link
+			rel="stylesheet"
+			href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap"
+		/>
+		<link rel="stylesheet" href="../styles.css" />
+	</head>
+	<body>
+		<a class="skip" href="#main">Skip to content</a>
+		<header class="site-header">
+			<div class="wrap">
+				<a class="brand" href="../"
+					><img src="../assets/logo.svg" alt="" width="32" height="32" /><span
+						>svelteMultiAdmin</span
+					></a
+				>
+				<nav class="nav" aria-label="Main">
+					<a href="../#features">Features</a>
+					<a href="../#quick-start">Quick start</a>
+					<a class="nav-docs" href="../docs/" aria-current="page">Docs</a>
+					<a class="btn btn-sm" href="https://github.com/razvn/svelteMultiAdmin">GitHub</a>
+				</nav>
+			</div>
+		</header>
+		<div class="wrap docs">
+			<nav class="docs-nav" aria-label="Documentation">
+				<h2>Getting started</h2>
+				<ul>
+					<li><a href="./">Overview</a></li>
+				</ul>
+				<h2>Sign-in and access</h2>
+				<ul>
+					<li><a href="authentication.html">Authentication</a></li>
+					<li><a href="access.html">Access rules</a></li>
+				</ul>
+				<h2>Operations</h2>
+				<ul>
+					<li><a href="deployment.html">Deployment</a></li>
+					<li><a href="kubernetes.html" aria-current="page">Kubernetes</a></li>
+					<li><a href="audit.html">Audit log</a></li>
+					<li><a href="updating.html">Updating the apps</a></li>
+				</ul>
+				<h2>Design</h2>
+				<ul>
+					<li><a href="security.html">Security model</a></li>
+				</ul>
+			</nav>
+			<main id="main" class="doc">
+				<h1>Kubernetes</h1>
+				<p>
+					<a href="https://github.com/razvn/svelteMultiAdmin/tree/main/deploy/kubernetes"
+						>deploy/kubernetes</a
+					>
+					holds a ready manifest and a walkthrough. One pod runs the portal and both apps. The apps
+					find the databases of every review namespace (one per merge request, for example), connect
+					with the password from that namespace&#x27;s Secret, and let Kubernetes RBAC decide who
+					may use which one; the portal decides who may open which app at all.
+				</p>
+				<div class="table-scroll">
+					<table>
+						<thead>
+							<tr>
+								<th>Object</th>
+								<th>Purpose</th>
+							</tr>
+						</thead>
+						<tbody>
+							<tr>
+								<td>Namespace <code class="inline">tools</code>, ServiceAccount</td>
+								<td>Where the portal runs.</td>
+							</tr>
+							<tr>
+								<td>ClusterRoleBinding to <code class="inline">system:auth-delegator</code></td>
+								<td>
+									SubjectAccessReviews: &quot;may this person use the database of that
+									namespace?&quot;
+								</td>
+							</tr>
+							<tr>
+								<td>ClusterRole and binding <code class="inline">multiadmin-discovery</code></td>
+								<td>
+									List namespaces and Services, and read only the Secrets named
+									<code class="inline">redis-auth</code> and <code class="inline">mysql-auth</code>.
+								</td>
+							</tr>
+							<tr>
+								<td>Secret <code class="inline">multiadmin</code></td>
+								<td>The portal config (it holds the cookie secret) and the bootstrap password.</td>
+							</tr>
+							<tr>
+								<td>ConfigMap <code class="inline">multiadmin-apps</code></td>
+								<td>
+									The apps&#x27; own configs: discovery of review namespaces, audit log to stdout.
+								</td>
+							</tr>
+							<tr>
+								<td>PersistentVolumeClaim</td>
+								<td><code class="inline">users.json</code> of the local accounts.</td>
+							</tr>
+							<tr>
+								<td>Deployment</td>
+								<td>
+									One replica, <code class="inline">Recreate</code>, non-root, readiness probe on
+									<code class="inline">/api/health</code>.
+								</td>
+							</tr>
+							<tr>
+								<td>Service and Ingress</td>
+								<td>ClusterIP behind an Ingress with three hosts.</td>
+							</tr>
+						</tbody>
+					</table>
+				</div>
+				<h2 id="try">Try it locally</h2>
+				<pre><code>docker build -t multiadmin:dev .
+kubectl apply -f deploy/kubernetes/multiadmin.yaml
+kubectl -n tools rollout status deploy/multiadmin
+kubectl -n tools port-forward svc/multiadmin 8080:80</code></pre>
+				<p>
+					Open <code class="inline">http://portal.localhost:8080</code> and sign in as
+					<code class="inline">admin</code> with the bootstrap password of the Secret. A browser
+					does not send <code class="inline">x-forwarded-proto</code>, so add it with a
+					request-header extension on <code class="inline">*.localhost</code>, or use an Ingress
+					controller with a certificate.
+				</p>
+				<h2 id="rbac">Kubernetes access checks</h2>
+				<p>
+					Discovered servers carry a namespace, and the apps ask the API server whether the person
+					may use it. The person is the user name and the groups the portal forwards (for OIDC and
+					trusted-header sign-in), with the prefixes you configure in
+					<code class="inline">authorize</code> (<code class="inline">userPrefix</code>,
+					<code class="inline">groupsPrefix</code>). They must equal the API server&#x27;s
+					<code class="inline">--oidc-username-prefix</code> and
+					<code class="inline">--oidc-groups-prefix</code>, or RBAC denies everyone. The apps&#x27;
+					own guides cover discovery, selectors, secrets and troubleshooting in full:
+					<a href="https://razvn.github.io/svelteRedisAdmin/docs/kubernetes.html"
+						>svelteRedisAdmin</a
+					>
+					and <a href="https://razvn.github.io/svelteMyAdmin/docs/signon.html">svelteMyAdmin</a>.
+				</p>
+				<h2 id="production">Going to production</h2>
+				<ul>
+					<li>
+						Change every secret and keep the apps&#x27; config in a Secret too if it holds static
+						servers with passwords.
+					</li>
+					<li>
+						Set the three <code class="inline">publicUrl</code> values and the Ingress hosts; the
+						Ingress must send <code class="inline">x-forwarded-proto</code> and
+						<code class="inline">x-forwarded-host</code>.
+					</li>
+					<li>
+						Switch <code class="inline">auth</code> to <code class="inline">oidc</code>, or to
+						<code class="inline">trusted-header</code> behind oauth2-proxy with
+						<code class="inline">trustedProxies</code> set to its addresses. With an SSO proxy add
+						its auth-url and auth-signin annotations to the Ingress.
+					</li>
+					<li>
+						The ClusterRoleBinding lets the portal read <code class="inline">redis-auth</code> and
+						<code class="inline">mysql-auth</code> in every namespace. To narrow it, bind
+						<code class="inline">multiadmin-discovery</code> with a RoleBinding per review namespace
+						from the pipeline that creates it.
+					</li>
+					<li>
+						Push the image to your registry and drop
+						<code class="inline">imagePullPolicy: Never</code>.
+					</li>
+				</ul>
+			</main>
+		</div>
+		<footer class="site-footer">
+			<div class="wrap">
+				<div>
+					<a class="brand" href="../"
+						><img src="../assets/logo.svg" alt="" width="28" height="28" /><span
+							>svelteMultiAdmin</span
+						></a
+					>
+					<p style="margin-top: 0.75rem">
+						svelteMultiAdmin is an independent project and is not affiliated with Oracle, MariaDB or
+						Redis Ltd. MySQL, MariaDB and Redis are trademarks of their respective owners.
+					</p>
+				</div>
+				<ul>
+					<li><a href="../docs/">Documentation</a></li>
+					<li><a href="https://github.com/razvn/svelteMultiAdmin">Source on GitHub</a></li>
+					<li><a href="https://github.com/razvn/svelteMultiAdmin/issues">Issues</a></li>
+					<li>
+						<a href="https://github.com/razvn/svelteMultiAdmin/blob/main/LICENSE"
+							>GPL-2.0-or-later</a
+						>
+					</li>
+				</ul>
+			</div>
+		</footer>
+	</body>
+</html>

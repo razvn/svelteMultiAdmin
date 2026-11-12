@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Security model - svelteMultiAdmin docs</title>
+		<meta
+			name="description"
+			content="How svelteMultiAdmin hands identity to svelteMyAdmin and svelteRedisAdmin without a second login, what it trusts, and the trade-offs."
+		/>
+		<meta name="color-scheme" content="light dark" />
+		<meta name="theme-color" content="#6366f1" />
+		<link rel="icon" type="image/svg+xml" href="../assets/favicon.svg" />
+		<link rel="canonical" href="https://razvn.github.io/svelteMultiAdmin/docs/security.html" />
+		<link rel="preconnect" href="https://fonts.googleapis.com" />
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+		<link
+			rel="stylesheet"
+			href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap"
+		/>
+		<link rel="stylesheet" href="../styles.css" />
+	</head>
+	<body>
+		<a class="skip" href="#main">Skip to content</a>
+		<header class="site-header">
+			<div class="wrap">
+				<a class="brand" href="../"
+					><img src="../assets/logo.svg" alt="" width="32" height="32" /><span
+						>svelteMultiAdmin</span
+					></a
+				>
+				<nav class="nav" aria-label="Main">
+					<a href="../#features">Features</a>
+					<a href="../#quick-start">Quick start</a>
+					<a class="nav-docs" href="../docs/" aria-current="page">Docs</a>
+					<a class="btn btn-sm" href="https://github.com/razvn/svelteMultiAdmin">GitHub</a>
+				</nav>
+			</div>
+		</header>
+		<div class="wrap docs">
+			<nav class="docs-nav" aria-label="Documentation">
+				<h2>Getting started</h2>
+				<ul>
+					<li><a href="./">Overview</a></li>
+				</ul>
+				<h2>Sign-in and access</h2>
+				<ul>
+					<li><a href="authentication.html">Authentication</a></li>
+					<li><a href="access.html">Access rules</a></li>
+				</ul>
+				<h2>Operations</h2>
+				<ul>
+					<li><a href="deployment.html">Deployment</a></li>
+					<li><a href="kubernetes.html">Kubernetes</a></li>
+					<li><a href="audit.html">Audit log</a></li>
+					<li><a href="updating.html">Updating the apps</a></li>
+				</ul>
+				<h2>Design</h2>
+				<ul>
+					<li><a href="security.html" aria-current="page">Security model</a></li>
+				</ul>
+			</nav>
+			<main id="main" class="doc">
+				<h1>Security model</h1>
+				<p>
+					The portal is the only thing a browser talks to. It authenticates the person, decides what
+					they may open, and then speaks to each app in the one language both already understand:
+					identity in trusted request headers, accepted only from a trusted network address.
+				</p>
+				<h2 id="identity">How identity reaches the apps</h2>
+				<ol>
+					<li>
+						Both apps already trust identity headers from a proxy, but only when the request&#x27;s
+						TCP peer is in a configured list (svelteMyAdmin&#x27;s
+						<code class="inline">signon</code>, svelteRedisAdmin&#x27;s
+						<code class="inline">header</code> plugin). The portal reuses that contract: the apps
+						listen on <code class="inline">127.0.0.1</code> and trust
+						<strong>loopback only</strong>.
+					</li>
+					<li>
+						For every proxied request the portal first <strong>deletes</strong> any header a client
+						could use to impersonate someone: the
+						<code class="inline">x-multiadmin-*</code> headers, upstream
+						<code class="inline">x-auth-request-*</code> headers,
+						<code class="inline">Forwarded</code> and every
+						<code class="inline">X-Forwarded-*</code>, hop-by-hop headers, and its own session
+						cookie. Then it sets the identity from the signed-in person alone.
+					</li>
+					<li>
+						svelteRedisAdmin always receives a role (its &quot;no role means admin&quot; default is
+						unreachable) and, unless the person may see every server, the list of server positions,
+						possibly empty.
+					</li>
+					<li>
+						Groups are passed only for OIDC and trusted-header sign-in. A group name with a comma or
+						a control character is dropped, because the apps split the header on commas.
+					</li>
+					<li>
+						The apps&#x27; environment is scrubbed of anything that could move their peer address,
+						origin or configuration, so a variable of the portal can never turn &quot;trusted peer:
+						loopback&quot; into something else.
+					</li>
+				</ol>
+				<h2 id="hosts">Why one hostname per app</h2>
+				<p>
+					The apps keep absolute URLs and have no base path, so mounting them under
+					<code class="inline">/mysql</code> would need about a hundred edits in each repository,
+					forever. Separate hostnames need none. Cookies are host-only, so the portal&#x27;s session
+					cookie and each app&#x27;s cookies never mix.
+				</p>
+				<h2 id="tickets">Moving between hosts</h2>
+				<p>
+					A session cookie of the portal does not exist on an app&#x27;s hostname.
+					<code class="inline">/go/&lt;app&gt;</code> mints a ticket that is signed (HMAC), valid 30
+					seconds, for one app, and <strong>single use</strong>; the app host redeems it, sets its
+					own cookie, and redirects. A replayed, expired or wrong-app ticket gets a 403 page, never
+					a redirect loop. Open-redirect return paths fall back to <code class="inline">/</code>.
+					Sessions live in one table in the portal, so logging out kills every host&#x27;s cookie at
+					once and disabling a user stops them on their next click.
+				</p>
+				<h2 id="tradeoffs">Trade-offs</h2>
+				<div class="table-scroll">
+					<table>
+						<thead>
+							<tr>
+								<th>We accept</th>
+								<th>In exchange for</th>
+							</tr>
+						</thead>
+						<tbody>
+							<tr>
+								<td>Three hostnames (DNS and Ingress rules)</td>
+								<td>No base-path changes in either app.</td>
+							</tr>
+							<tr>
+								<td>
+									Anything else on the pod&#x27;s loopback (a sidecar proxy) could forge identity to
+									the apps
+								</td>
+								<td>
+									Reusing the contract both apps already ship and test, with no new code in them.
+									The alternative, signed tokens verified by each app, removes this risk and costs a
+									new authentication plugin in each repository: it stays the upgrade path.
+								</td>
+							</tr>
+							<tr>
+								<td>In-memory sessions and tickets: one replica, sign in again after a restart</td>
+								<td>Instant logout everywhere and exactly-once tickets with no store.</td>
+							</tr>
+							<tr>
+								<td>Proxying through the portal (an extra hop)</td>
+								<td>One process tree, one configuration, no extra component to operate.</td>
+							</tr>
+							<tr>
+								<td>All-or-nothing access to svelteMyAdmin</td>
+								<td>
+									Keeping its change limited to the back-link: it connects with one MySQL account
+									per server for everyone, narrowed only by Kubernetes checks.
+								</td>
+							</tr>
+							<tr>
+								<td>The portal overwrites the apps&#x27; authentication settings</td>
+								<td>
+									One source for header names and trusted networks, and no way to opt an app out of
+									SSO inside the bundle.
+								</td>
+							</tr>
+						</tbody>
+					</table>
+				</div>
+				<h2 id="verified">What has been verified</h2>
+				<ul>
+					<li>
+						Unit and integration tests with real child processes, real git repositories and a fake
+						OpenID provider cover grants, tickets, header scrubbing, the gate, the proxy (streaming,
+						redirects, cookies, restarts), local sign-in, OIDC (PKCE, state, nonce, replay), trusted
+						headers, client addresses and <code class="inline">bundle:update</code>.
+					</li>
+					<li>
+						A run in a browser against the built apps: sign in once, open each app with no second
+						login, the back-link, a restricted user, forged headers ignored, logout ending every
+						host.
+					</li>
+					<li>
+						Not covered: a real OpenID provider, a real SSO proxy, a service mesh, and the Docker
+						image on a cluster. Test those in your environment.
+					</li>
+				</ul>
+				<p>
+					The full design record, including the rejected alternatives, is in
+					<a href="https://github.com/razvn/svelteMultiAdmin/blob/main/docs/ARCHITECTURE.md"
+						>docs/ARCHITECTURE.md</a
+					>.
+				</p>
+			</main>
+		</div>
+		<footer class="site-footer">
+			<div class="wrap">
+				<div>
+					<a class="brand" href="../"
+						><img src="../assets/logo.svg" alt="" width="28" height="28" /><span
+							>svelteMultiAdmin</span
+						></a
+					>
+					<p style="margin-top: 0.75rem">
+						svelteMultiAdmin is an independent project and is not affiliated with Oracle, MariaDB or
+						Redis Ltd. MySQL, MariaDB and Redis are trademarks of their respective owners.
+					</p>
+				</div>
+				<ul>
+					<li><a href="../docs/">Documentation</a></li>
+					<li><a href="https://github.com/razvn/svelteMultiAdmin">Source on GitHub</a></li>
+					<li><a href="https://github.com/razvn/svelteMultiAdmin/issues">Issues</a></li>
+					<li>
+						<a href="https://github.com/razvn/svelteMultiAdmin/blob/main/LICENSE"
+							>GPL-2.0-or-later</a
+						>
+					</li>
+				</ul>
+			</div>
+		</footer>
+	</body>
+</html>

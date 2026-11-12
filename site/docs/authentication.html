@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Authentication - svelteMultiAdmin docs</title>
+		<meta
+			name="description"
+			content="svelteMultiAdmin sign-in modes: local accounts, OpenID Connect and trusted headers from an SSO proxy."
+		/>
+		<meta name="color-scheme" content="light dark" />
+		<meta name="theme-color" content="#6366f1" />
+		<link rel="icon" type="image/svg+xml" href="../assets/favicon.svg" />
+		<link
+			rel="canonical"
+			href="https://razvn.github.io/svelteMultiAdmin/docs/authentication.html"
+		/>
+		<link rel="preconnect" href="https://fonts.googleapis.com" />
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+		<link
+			rel="stylesheet"
+			href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap"
+		/>
+		<link rel="stylesheet" href="../styles.css" />
+	</head>
+	<body>
+		<a class="skip" href="#main">Skip to content</a>
+		<header class="site-header">
+			<div class="wrap">
+				<a class="brand" href="../"
+					><img src="../assets/logo.svg" alt="" width="32" height="32" /><span
+						>svelteMultiAdmin</span
+					></a
+				>
+				<nav class="nav" aria-label="Main">
+					<a href="../#features">Features</a>
+					<a href="../#quick-start">Quick start</a>
+					<a class="nav-docs" href="../docs/" aria-current="page">Docs</a>
+					<a class="btn btn-sm" href="https://github.com/razvn/svelteMultiAdmin">GitHub</a>
+				</nav>
+			</div>
+		</header>
+		<div class="wrap docs">
+			<nav class="docs-nav" aria-label="Documentation">
+				<h2>Getting started</h2>
+				<ul>
+					<li><a href="./">Overview</a></li>
+				</ul>
+				<h2>Sign-in and access</h2>
+				<ul>
+					<li><a href="authentication.html" aria-current="page">Authentication</a></li>
+					<li><a href="access.html">Access rules</a></li>
+				</ul>
+				<h2>Operations</h2>
+				<ul>
+					<li><a href="deployment.html">Deployment</a></li>
+					<li><a href="kubernetes.html">Kubernetes</a></li>
+					<li><a href="audit.html">Audit log</a></li>
+					<li><a href="updating.html">Updating the apps</a></li>
+				</ul>
+				<h2>Design</h2>
+				<ul>
+					<li><a href="security.html">Security model</a></li>
+				</ul>
+			</nav>
+			<main id="main" class="doc">
+				<h1>Authentication</h1>
+				<p>
+					Pick one mode in <code class="inline">auth.type</code>. Whatever the mode, the result is
+					the same: a person with a user name, optional email and groups, which the
+					<a href="access.html">access rules</a> turn into grants.
+				</p>
+				<div class="table-scroll">
+					<table>
+						<thead>
+							<tr>
+								<th>`auth.type`</th>
+								<th>Who signs in</th>
+								<th>Session</th>
+							</tr>
+						</thead>
+						<tbody>
+							<tr>
+								<td><code class="inline">local</code></td>
+								<td>Accounts stored by the portal in <code class="inline">usersFile</code></td>
+								<td>Portal session cookie</td>
+							</tr>
+							<tr>
+								<td><code class="inline">oidc</code></td>
+								<td>Any OpenID Connect provider</td>
+								<td>Portal session cookie</td>
+							</tr>
+							<tr>
+								<td><code class="inline">trusted-header</code></td>
+								<td>An SSO proxy in front of the portal</td>
+								<td>None: the proxy&#x27;s headers are read on every request</td>
+							</tr>
+						</tbody>
+					</table>
+				</div>
+				<h2 id="local">Local accounts</h2>
+				<pre><code>&quot;auth&quot;: { &quot;type&quot;: &quot;local&quot;, &quot;usersFile&quot;: &quot;/data/users.json&quot;, &quot;bootstrapAdmin&quot;: &quot;admin&quot; }</code></pre>
+				<ul>
+					<li>
+						Accounts live in <code class="inline">usersFile</code> (JSON, written atomically with
+						<code class="inline">0600</code> permissions). Passwords are hashed with scrypt.
+						Usernames are lowercase letters, digits and <code class="inline">. _ @ -</code>.
+					</li>
+					<li>
+						The first start creates <code class="inline">bootstrapAdmin</code> with the password in
+						<code class="inline">MULTIADMIN_BOOTSTRAP_PASSWORD</code>, in the groups of
+						<code class="inline">MULTIADMIN_BOOTSTRAP_GROUPS</code> (default
+						<code class="inline">platform-admins</code>). If the account does not exist and the
+						variable is missing, the portal refuses to start and says so. Give that group
+						<code class="inline">userAdmin</code> in an access rule, as the sample config does.
+					</li>
+					<li>
+						People with <code class="inline">userAdmin</code> manage accounts on the
+						<strong>Users</strong> page: add, change groups or email, reset a password (leave the
+						field empty to keep it), disable, delete. You cannot delete yourself.
+					</li>
+					<li>
+						Five failed sign-ins for a username within five minutes lock that username for the rest
+						of the window. A wrong password and an unknown user take the same time.
+					</li>
+					<li>
+						A local user is read again on every request: disabling or regrouping takes effect on
+						their next click.
+					</li>
+					<li>
+						Groups of local users are <strong>not</strong> passed to the apps as Kubernetes groups,
+						so a local admin cannot create a user in a group like
+						<code class="inline">system:masters</code>.
+					</li>
+				</ul>
+				<h2 id="oidc">OpenID Connect</h2>
+				<pre><code>&quot;auth&quot;: {
+	&quot;type&quot;: &quot;oidc&quot;,
+	&quot;issuer&quot;: &quot;https://idp.example.com&quot;,
+	&quot;clientId&quot;: &quot;multiadmin&quot;,
+	&quot;clientSecretEnv&quot;: &quot;OIDC_SECRET&quot;,
+	&quot;groupsClaim&quot;: &quot;groups&quot;,
+	&quot;scopes&quot;: [&quot;openid&quot;, &quot;profile&quot;, &quot;email&quot;]
+}</code></pre>
+				<div class="table-scroll">
+					<table>
+						<thead>
+							<tr>
+								<th>Key</th>
+								<th>Meaning</th>
+							</tr>
+						</thead>
+						<tbody>
+							<tr>
+								<td><code class="inline">issuer</code></td>
+								<td>The provider&#x27;s issuer URL. Its discovery document is fetched once.</td>
+							</tr>
+							<tr>
+								<td>
+									<code class="inline">clientId</code>, <code class="inline">clientSecret</code>
+								</td>
+								<td>
+									Your client. Prefer <code class="inline">clientSecretEnv</code>, the name of an
+									environment variable holding the secret.
+								</td>
+							</tr>
+							<tr>
+								<td><code class="inline">groupsClaim</code></td>
+								<td>
+									Claim with the person&#x27;s groups, as a list or a comma-separated string.
+									Default <code class="inline">groups</code>.
+								</td>
+							</tr>
+							<tr>
+								<td><code class="inline">scopes</code></td>
+								<td>Default <code class="inline">openid profile email</code>.</td>
+							</tr>
+							<tr>
+								<td><code class="inline">allowInsecureIssuer</code></td>
+								<td>
+									Allows an <code class="inline">http://</code> issuer, for a local provider in
+									development only. Default false.
+								</td>
+							</tr>
+						</tbody>
+					</table>
+				</div>
+				<ul>
+					<li>
+						Register <code class="inline">&lt;publicUrl&gt;/auth/callback</code> as the redirect URI
+						at your provider.
+					</li>
+					<li>
+						The flow is the authorization code flow with PKCE (S256),
+						<code class="inline">state</code> and <code class="inline">nonce</code>. Its state is
+						kept in a short-lived, encrypted cookie and checked on the callback together with the ID
+						token.
+					</li>
+					<li>
+						The user name is <code class="inline">preferred_username</code>, then
+						<code class="inline">email</code>, then <code class="inline">sub</code>. An email is
+						used only if the provider does not mark it unverified. A name with a comma, whitespace
+						or control characters is rejected, and unsafe group names are dropped.
+					</li>
+					<li>
+						Groups are read when the person signs in. A group change at the provider applies at
+						their next sign-in (at most <code class="inline">sessionTtlSeconds</code> later).
+					</li>
+					<li>
+						The groups also reach the apps as Kubernetes groups, for their access checks. The
+						prefixes the apps use (<code class="inline">authorize.userPrefix</code>,
+						<code class="inline">groupsPrefix</code>) must match your API server&#x27;s
+						<code class="inline">--oidc-username-prefix</code> and
+						<code class="inline">--oidc-groups-prefix</code>.
+					</li>
+					<li>Logging out ends the portal session but not the provider&#x27;s own session.</li>
+				</ul>
+				<h2 id="trusted-header">Trusted headers behind an SSO proxy</h2>
+				<pre><code>&quot;auth&quot;: {
+	&quot;type&quot;: &quot;trusted-header&quot;,
+	&quot;userHeader&quot;: &quot;x-auth-request-user&quot;,
+	&quot;emailHeader&quot;: &quot;x-auth-request-email&quot;,
+	&quot;groupsHeader&quot;: &quot;x-auth-request-groups&quot;,
+	&quot;trustedProxies&quot;: [&quot;10.42.0.0/16&quot;],
+	&quot;logoutUrl&quot;: &quot;/oauth2/sign_out&quot;
+}</code></pre>
+				<p>
+					An SSO proxy (oauth2-proxy, an ingress <code class="inline">auth-url</code>, Pomerium…)
+					authenticates the person against your identity provider and forwards who they are in
+					headers. The portal reads them on every request, so when the proxy&#x27;s session ends,
+					access ends.
+				</p>
+				<ul>
+					<li>
+						<strong>Only from trusted peers.</strong> The headers are honoured only when the direct
+						TCP peer is one of <code class="inline">trustedProxies</code> (IPs or CIDR ranges, IPv4
+						or IPv6, required and non-empty). From any other address they are ignored, because
+						anyone can send them.
+					</li>
+					<li>
+						The user header must hold a name with no comma (a comma means the header arrived twice),
+						no whitespace and no control characters.
+					</li>
+					<li>
+						The three header names default to the
+						<code class="inline">x-auth-request-*</code> headers of oauth2-proxy.
+						<code class="inline">emailHeader</code> and <code class="inline">groupsHeader</code> may
+						be <code class="inline">null</code>.
+					</li>
+					<li>
+						<strong>The proxy must cover all three hostnames</strong> (portal and both apps): the
+						portal checks the identity on each of them. With oauth2-proxy, set its cookie on the
+						parent domain.
+					</li>
+					<li>
+						<code class="inline">logoutUrl</code> is where &quot;Log out&quot; goes, usually the
+						proxy&#x27;s sign-out. Without it, the person lands on a page saying to sign in through
+						the proxy.
+					</li>
+					<li>
+						Behind the proxy, the apps&#x27; audit logs record the real client address: the portal
+						walks <code class="inline">X-Forwarded-For</code> from the right through the trusted
+						proxies.
+					</li>
+					<li>
+						Do not set <code class="inline">ADDRESS_HEADER</code> on the portal in this mode: the
+						check relies on the real TCP peer.
+					</li>
+				</ul>
+			</main>
+		</div>
+		<footer class="site-footer">
+			<div class="wrap">
+				<div>
+					<a class="brand" href="../"
+						><img src="../assets/logo.svg" alt="" width="28" height="28" /><span
+							>svelteMultiAdmin</span
+						></a
+					>
+					<p style="margin-top: 0.75rem">
+						svelteMultiAdmin is an independent project and is not affiliated with Oracle, MariaDB or
+						Redis Ltd. MySQL, MariaDB and Redis are trademarks of their respective owners.
+					</p>
+				</div>
+				<ul>
+					<li><a href="../docs/">Documentation</a></li>
+					<li><a href="https://github.com/razvn/svelteMultiAdmin">Source on GitHub</a></li>
+					<li><a href="https://github.com/razvn/svelteMultiAdmin/issues">Issues</a></li>
+					<li>
+						<a href="https://github.com/razvn/svelteMultiAdmin/blob/main/LICENSE"
+							>GPL-2.0-or-later</a
+						>
+					</li>
+				</ul>
+			</div>
+		</footer>
+	</body>
+</html>

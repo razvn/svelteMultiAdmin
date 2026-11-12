@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Deployment - svelteMultiAdmin docs</title>
+		<meta
+			name="description"
+			content="Deploy svelteMultiAdmin with Docker or behind an ingress: hostnames, proxy headers, uploads and a production checklist."
+		/>
+		<meta name="color-scheme" content="light dark" />
+		<meta name="theme-color" content="#6366f1" />
+		<link rel="icon" type="image/svg+xml" href="../assets/favicon.svg" />
+		<link rel="canonical" href="https://razvn.github.io/svelteMultiAdmin/docs/deployment.html" />
+		<link rel="preconnect" href="https://fonts.googleapis.com" />
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+		<link
+			rel="stylesheet"
+			href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap"
+		/>
+		<link rel="stylesheet" href="../styles.css" />
+	</head>
+	<body>
+		<a class="skip" href="#main">Skip to content</a>
+		<header class="site-header">
+			<div class="wrap">
+				<a class="brand" href="../"
+					><img src="../assets/logo.svg" alt="" width="32" height="32" /><span
+						>svelteMultiAdmin</span
+					></a
+				>
+				<nav class="nav" aria-label="Main">
+					<a href="../#features">Features</a>
+					<a href="../#quick-start">Quick start</a>
+					<a class="nav-docs" href="../docs/" aria-current="page">Docs</a>
+					<a class="btn btn-sm" href="https://github.com/razvn/svelteMultiAdmin">GitHub</a>
+				</nav>
+			</div>
+		</header>
+		<div class="wrap docs">
+			<nav class="docs-nav" aria-label="Documentation">
+				<h2>Getting started</h2>
+				<ul>
+					<li><a href="./">Overview</a></li>
+				</ul>
+				<h2>Sign-in and access</h2>
+				<ul>
+					<li><a href="authentication.html">Authentication</a></li>
+					<li><a href="access.html">Access rules</a></li>
+				</ul>
+				<h2>Operations</h2>
+				<ul>
+					<li><a href="deployment.html" aria-current="page">Deployment</a></li>
+					<li><a href="kubernetes.html">Kubernetes</a></li>
+					<li><a href="audit.html">Audit log</a></li>
+					<li><a href="updating.html">Updating the apps</a></li>
+				</ul>
+				<h2>Design</h2>
+				<ul>
+					<li><a href="security.html">Security model</a></li>
+				</ul>
+			</nav>
+			<main id="main" class="doc">
+				<h1>Deployment</h1>
+				<h2 id="image">Build the image</h2>
+				<p>
+					The two apps are git submodules in <code class="inline">vendor/</code>. Fetch them, then
+					build one image that holds the portal and both apps, each built from its own lockfile:
+				</p>
+				<pre><code>git submodule update --init    # or: pnpm bundle:update (see &quot;Updating the apps&quot;)
+docker build -t multiadmin .</code></pre>
+				<pre><code>docker run -p 3000:3000 \
+  -v ./multiadmin.json:/config/multiadmin.json \
+  -v ./myadmin.json:/config/myadmin.json \
+  -v ./redisadmin.json:/config/redisadmin.json \
+  -v multiadmin-data:/data \
+  -e MULTIADMIN_BOOTSTRAP_PASSWORD=change-me multiadmin</code></pre>
+				<p>
+					The image runs as a non-root user under <code class="inline">tini</code>, listens on 3000,
+					and has a health check on <code class="inline">/api/health</code>.
+				</p>
+				<h2 id="hostnames">Three hostnames</h2>
+				<p>
+					The portal and each app have their own hostname, so the apps need no changes to live under
+					one address. Point three DNS names (for example
+					<code class="inline">admin.example.com</code>,
+					<code class="inline">mysql.admin.example.com</code>,
+					<code class="inline">redis.admin.example.com</code>) at the same Service and Ingress; the
+					portal tells them apart by <code class="inline">Host</code>. The three
+					<code class="inline">publicUrl</code> values must be different. For local development,
+					browsers resolve <code class="inline">*.localhost</code> to the loopback address:
+					<code class="inline">portal.localhost</code>,
+					<code class="inline">myadmin.localhost</code>,
+					<code class="inline">redisadmin.localhost</code>.
+				</p>
+				<h2 id="proxy-headers">Proxy headers</h2>
+				<p>
+					The portal derives its public origin from the
+					<code class="inline">x-forwarded-proto</code> and
+					<code class="inline">x-forwarded-host</code> headers of your ingress (<code class="inline"
+						>PROTOCOL_HEADER</code
+					>
+					and <code class="inline">HOST_HEADER</code>, already set in the image). Without them
+					SvelteKit assumes <code class="inline">https</code> and refuses every form submission as
+					cross-site. A browser does not send <code class="inline">x-forwarded-proto</code> by
+					itself, so for plain http on your machine put a small proxy in front that adds
+					<code class="inline">x-forwarded-proto: http</code>, or use https.
+				</p>
+				<div class="callout">
+					<p>
+						Do not set <code class="inline">ADDRESS_HEADER</code> on the portal. The identity checks
+						rely on the real TCP peer.
+					</p>
+				</div>
+				<h2 id="uploads">Uploads</h2>
+				<p>
+					The portal accepts any body size and each app enforces its own limit. svelteMyAdmin&#x27;s
+					import page streams files, but its default limit is small: raise it with
+					<code class="inline">MULTIADMIN_MYADMIN_BODY_SIZE_LIMIT</code> (for example
+					<code class="inline">512M</code>).
+					<code class="inline">MULTIADMIN_REDISADMIN_BODY_SIZE_LIMIT</code> does the same for Redis
+					imports.
+				</p>
+				<h2 id="replicas">One replica</h2>
+				<p>
+					Sessions and sign-in tickets are held in memory, which keeps logout and single-use tickets
+					exact with no store. Run one replica (with the
+					<code class="inline">Recreate</code> strategy on Kubernetes) and expect everyone to sign
+					in again after a restart. Local accounts live in <code class="inline">usersFile</code>:
+					keep it on a volume.
+				</p>
+				<h2 id="children">How the apps are started</h2>
+				<p>
+					The portal starts each app with <code class="inline">node build</code> on a loopback port
+					(3101 for MySQL, 3102 for Redis), with a configuration it writes to a private temporary
+					directory (<code class="inline">0600</code>). It polls
+					<code class="inline">/api/health</code>, answers 503 while an app is starting, and
+					restarts a crashed app with a backoff of 1 second doubling to 30 seconds. The apps&#x27;
+					environment is the portal&#x27;s minus anything that could move their peer, origin or
+					configuration (<code class="inline">ADDRESS_HEADER</code>,
+					<code class="inline">ORIGIN</code>, <code class="inline">HOST</code>,
+					<code class="inline">PORT</code>, <code class="inline">BODY_SIZE_LIMIT</code>,
+					<code class="inline">MULTIADMIN_*</code>, <code class="inline">OIDC_*</code>…);
+					<code class="inline">KUBERNETES_SERVICE_*</code> passes through so access checks keep
+					working.
+				</p>
+				<h2 id="checklist">Production checklist</h2>
+				<ul>
+					<li>
+						Change every secret: <code class="inline">cookieSecret</code> (32+ random characters),
+						the apps&#x27; own secrets, the bootstrap password.
+					</li>
+					<li>
+						Use real hostnames and TLS, and make sure the ingress sends
+						<code class="inline">x-forwarded-proto</code> and
+						<code class="inline">x-forwarded-host</code>.
+					</li>
+					<li>
+						Prefer OIDC or an SSO proxy over local accounts for people who are not administrators.
+					</li>
+					<li>
+						<strong>Nothing else in the pod.</strong> The apps trust the portal&#x27;s identity
+						headers from the pod&#x27;s loopback address only. A sidecar you do not trust (a
+						service-mesh proxy, for example) could send them too. If you run one, see the trade-offs
+						in the <a href="security.html">security model</a>.
+					</li>
+					<li>Keep the users file on a volume and back it up.</li>
+					<li>
+						Watch the logs: the portal logs refused sign-ins and app restarts, and each app logs
+						with its prefix (<code class="inline">[myadmin]</code>,
+						<code class="inline">[redisadmin]</code>).
+					</li>
+				</ul>
+			</main>
+		</div>
+		<footer class="site-footer">
+			<div class="wrap">
+				<div>
+					<a class="brand" href="../"
+						><img src="../assets/logo.svg" alt="" width="28" height="28" /><span
+							>svelteMultiAdmin</span
+						></a
+					>
+					<p style="margin-top: 0.75rem">
+						svelteMultiAdmin is an independent project and is not affiliated with Oracle, MariaDB or
+						Redis Ltd. MySQL, MariaDB and Redis are trademarks of their respective owners.
+					</p>
+				</div>
+				<ul>
+					<li><a href="../docs/">Documentation</a></li>
+					<li><a href="https://github.com/razvn/svelteMultiAdmin">Source on GitHub</a></li>
+					<li><a href="https://github.com/razvn/svelteMultiAdmin/issues">Issues</a></li>
+					<li>
+						<a href="https://github.com/razvn/svelteMultiAdmin/blob/main/LICENSE"
+							>GPL-2.0-or-later</a
+						>
+					</li>
+				</ul>
+			</div>
+		</footer>
+	</body>
+</html>

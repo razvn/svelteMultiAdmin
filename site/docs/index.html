@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Overview - svelteMultiAdmin docs</title>
+		<meta
+			name="description"
+			content="svelteMultiAdmin documentation: how the portal works, its configuration file and environment variables."
+		/>
+		<meta name="color-scheme" content="light dark" />
+		<meta name="theme-color" content="#6366f1" />
+		<link rel="icon" type="image/svg+xml" href="../assets/favicon.svg" />
+		<link rel="canonical" href="https://razvn.github.io/svelteMultiAdmin/docs/" />
+		<link rel="preconnect" href="https://fonts.googleapis.com" />
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+		<link
+			rel="stylesheet"
+			href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap"
+		/>
+		<link rel="stylesheet" href="../styles.css" />
+	</head>
+	<body>
+		<a class="skip" href="#main">Skip to content</a>
+		<header class="site-header">
+			<div class="wrap">
+				<a class="brand" href="../"
+					><img src="../assets/logo.svg" alt="" width="32" height="32" /><span
+						>svelteMultiAdmin</span
+					></a
+				>
+				<nav class="nav" aria-label="Main">
+					<a href="../#features">Features</a>
+					<a href="../#quick-start">Quick start</a>
+					<a class="nav-docs" href="../docs/" aria-current="page">Docs</a>
+					<a class="btn btn-sm" href="https://github.com/razvn/svelteMultiAdmin">GitHub</a>
+				</nav>
+			</div>
+		</header>
+		<div class="wrap docs">
+			<nav class="docs-nav" aria-label="Documentation">
+				<h2>Getting started</h2>
+				<ul>
+					<li><a href="./" aria-current="page">Overview</a></li>
+				</ul>
+				<h2>Sign-in and access</h2>
+				<ul>
+					<li><a href="authentication.html">Authentication</a></li>
+					<li><a href="access.html">Access rules</a></li>
+				</ul>
+				<h2>Operations</h2>
+				<ul>
+					<li><a href="deployment.html">Deployment</a></li>
+					<li><a href="kubernetes.html">Kubernetes</a></li>
+					<li><a href="audit.html">Audit log</a></li>
+					<li><a href="updating.html">Updating the apps</a></li>
+				</ul>
+				<h2>Design</h2>
+				<ul>
+					<li><a href="security.html">Security model</a></li>
+				</ul>
+			</nav>
+			<main id="main" class="doc">
+				<h1>Overview</h1>
+				<p>
+					svelteMultiAdmin is one portal in front of
+					<a href="https://github.com/razvn/svelteMyAdmin">svelteMyAdmin</a> and
+					<a href="https://github.com/razvn/svelteRedisAdmin">svelteRedisAdmin</a>. People sign in
+					once on the portal, then open MySQL or Redis administration without a second login. Both
+					apps run in the same container, each on its own hostname, and keep their own repositories:
+					they are git submodules pinned to release tags.
+				</p>
+				<h2 id="how">How it works</h2>
+				<ol>
+					<li>
+						You sign in on the portal: local accounts, OpenID Connect, or an SSO proxy in front of
+						it (<a href="authentication.html">authentication</a>).
+					</li>
+					<li>
+						<strong>Access rules</strong> turn your user name, groups and email into grants: MySQL
+						yes or no, a Redis role (<code class="inline">ro</code>, <code class="inline">rw</code>,
+						<code class="inline">admin</code>), the Redis servers you may see, and whether you
+						manage users (<a href="access.html">access rules</a>).
+					</li>
+					<li>
+						Clicking an app goes through <code class="inline">/go/&lt;app&gt;</code>: a 30-second,
+						single-use ticket sets a cookie on that app&#x27;s own hostname.
+					</li>
+					<li>
+						The portal proxies every request to the app with trusted identity headers (<code
+							class="inline"
+							>x-multiadmin-*</code
+						>) that it sets itself, after removing anything of that kind a client sent. The apps
+						listen on loopback only and trust those headers only from there, so they never show a
+						login form (<a href="security.html">security model</a>).
+					</li>
+					<li>Each app&#x27;s user menu has <strong>Back to Admin portal</strong>.</li>
+				</ol>
+				<p>
+					Grants are recomputed on every request: editing an access rule, regrouping a local user or
+					disabling them applies on the next click, on every host. Logging out on the portal ends
+					the session on all hosts.
+				</p>
+				<pre><code>browser ──▶ ingress ──▶ MultiAdmin :3000 ── admin.example.com        portal: login, launcher, user admin
+                              │          ── mysql.admin.example.com  ── gate ──▶ 127.0.0.1:3101 svelteMyAdmin
+                              │          ── redis.admin.example.com  ── gate ──▶ 127.0.0.1:3102 svelteRedisAdmin
+                              └─ starts and supervises both apps</code></pre>
+				<h2 id="config">Configuration</h2>
+				<p>
+					<code class="inline">multiadmin.json</code> (path in
+					<code class="inline">MULTIADMIN_CONFIG</code>) is the only file that knows about all three
+					applications. A sample is in the repository:
+					<a href="https://github.com/razvn/svelteMultiAdmin/blob/main/config.sample.json"
+						>config.sample.json</a
+					>.
+				</p>
+				<pre><code>{
+	&quot;publicUrl&quot;: &quot;https://admin.example.com&quot;, // origin only; every host below must be different
+	&quot;cookieSecret&quot;: &quot;32+ random characters&quot;,
+	&quot;sessionTtlSeconds&quot;: 28800,
+	&quot;auth&quot;: { &quot;type&quot;: &quot;local&quot;, &quot;usersFile&quot;: &quot;/data/users.json&quot;, &quot;bootstrapAdmin&quot;: &quot;admin&quot; },
+	&quot;access&quot;: [
+		{ &quot;match&quot;: { &quot;group&quot;: &quot;platform-admins&quot; }, &quot;grants&quot;: { &quot;myadmin&quot;: true, &quot;redisadmin&quot;: { &quot;role&quot;: &quot;admin&quot; }, &quot;userAdmin&quot;: true } },
+		{ &quot;match&quot;: { &quot;group&quot;: &quot;devs&quot; }, &quot;grants&quot;: { &quot;redisadmin&quot;: { &quot;role&quot;: &quot;rw&quot;, &quot;servers&quot;: [&quot;Dev redis1&quot;] } } },
+		{ &quot;match&quot;: { &quot;group&quot;: &quot;*&quot; }, &quot;grants&quot;: { &quot;redisadmin&quot;: { &quot;role&quot;: &quot;ro&quot; } } }
+	],
+	&quot;apps&quot;: {
+		&quot;myadmin&quot;: { &quot;publicUrl&quot;: &quot;https://mysql.admin.example.com&quot;, &quot;config&quot;: &quot;/config/myadmin.json&quot; },
+		&quot;redisadmin&quot;: { &quot;publicUrl&quot;: &quot;https://redis.admin.example.com&quot;, &quot;config&quot;: &quot;/config/redisadmin.json&quot; }
+	}
+}</code></pre>
+				<div class="table-scroll">
+					<table>
+						<thead>
+							<tr>
+								<th>Key</th>
+								<th>Meaning</th>
+							</tr>
+						</thead>
+						<tbody>
+							<tr>
+								<td><code class="inline">publicUrl</code></td>
+								<td>
+									The portal&#x27;s origin (http or https, no path). Also the redirect base for OIDC
+									(<code class="inline">&lt;publicUrl&gt;/auth/callback</code>).
+								</td>
+							</tr>
+							<tr>
+								<td><code class="inline">cookieSecret</code></td>
+								<td>
+									At least 32 characters. Signs session cookies and seals the OIDC flow cookie.
+									svelteRedisAdmin&#x27;s cookie secret is derived from it when its own config does
+									not set one.
+								</td>
+							</tr>
+							<tr>
+								<td><code class="inline">sessionTtlSeconds</code></td>
+								<td>Session lifetime. Default 28800 (8 hours).</td>
+							</tr>
+							<tr>
+								<td><code class="inline">auth</code></td>
+								<td>
+									One of <code class="inline">local</code>, <code class="inline">oidc</code>,
+									<code class="inline">trusted-header</code>. See
+									<a href="authentication.html">authentication</a>.
+								</td>
+							</tr>
+							<tr>
+								<td><code class="inline">access</code></td>
+								<td>The rules that grant access. See <a href="access.html">access rules</a>.</td>
+							</tr>
+							<tr>
+								<td><code class="inline">apps.&lt;id&gt;.publicUrl</code></td>
+								<td>
+									The hostname of the app. Must differ from the portal and from the other app.
+								</td>
+							</tr>
+							<tr>
+								<td><code class="inline">apps.&lt;id&gt;.config</code></td>
+								<td>
+									Path of the app&#x27;s own configuration (its servers, discovery, audit). Relative
+									paths resolve from the portal config&#x27;s directory. Omit an app to leave it out
+									of the bundle.
+								</td>
+							</tr>
+							<tr>
+								<td><code class="inline">apps.&lt;id&gt;.label</code></td>
+								<td>Name on the launcher card. Defaults to MySQL / Redis.</td>
+							</tr>
+						</tbody>
+					</table>
+				</div>
+				<h2 id="app-configs">The apps&#x27; own configuration</h2>
+				<p>
+					<code class="inline">myadmin.json</code> and
+					<code class="inline">redisadmin.json</code> are the apps&#x27; normal configuration files:
+					servers, Kubernetes discovery, audit log. The portal
+					<strong>overwrites their authentication keys</strong> when it starts each app (their
+					<code class="inline">signon</code> and <code class="inline">header</code> identity
+					settings, trusted networks, sign-in and logout links, and the
+					<code class="inline">Portal</code> back-link), so you never write header names or trusted
+					networks yourself. See the apps&#x27; own documentation for everything else:
+					<a href="https://razvn.github.io/svelteRedisAdmin/docs/">svelteRedisAdmin</a>,
+					<a href="https://razvn.github.io/svelteMyAdmin/docs/">svelteMyAdmin</a>.
+				</p>
+				<div class="callout">
+					<p>
+						A svelteMyAdmin server needs an explicit <code class="inline">user</code> (and
+						<code class="inline">password</code>): with SSO everyone shares that MySQL account.
+						Kubernetes access checks of the app can narrow who may use a server. A server without
+						<code class="inline">user</code> makes that app refuse to start, with a message naming
+						it.
+					</p>
+				</div>
+				<h2 id="env">Environment variables</h2>
+				<div class="table-scroll">
+					<table>
+						<thead>
+							<tr>
+								<th>Variable</th>
+								<th>Meaning</th>
+							</tr>
+						</thead>
+						<tbody>
+							<tr>
+								<td><code class="inline">MULTIADMIN_CONFIG</code></td>
+								<td>Path of <code class="inline">multiadmin.json</code>. Required.</td>
+							</tr>
+							<tr>
+								<td><code class="inline">MULTIADMIN_CHILDREN_DIR</code></td>
+								<td>
+									Where <code class="inline">&lt;app&gt;/build</code> live. Default
+									<code class="inline">/app/children</code>. For development.
+								</td>
+							</tr>
+							<tr>
+								<td><code class="inline">MULTIADMIN_BOOTSTRAP_PASSWORD</code></td>
+								<td>
+									Password of the first local admin (see
+									<a href="authentication.html#local">authentication</a>).
+								</td>
+							</tr>
+							<tr>
+								<td><code class="inline">MULTIADMIN_BOOTSTRAP_GROUPS</code></td>
+								<td>
+									Groups of that first admin. Default <code class="inline">platform-admins</code>.
+								</td>
+							</tr>
+							<tr>
+								<td><code class="inline">MULTIADMIN_&lt;APP&gt;_BODY_SIZE_LIMIT</code></td>
+								<td>
+									Upload limit of one app (<code class="inline">MYADMIN</code> or
+									<code class="inline">REDISADMIN</code>), passed to it as
+									<code class="inline">BODY_SIZE_LIMIT</code>.
+								</td>
+							</tr>
+							<tr>
+								<td>
+									<code class="inline">PROTOCOL_HEADER</code>,
+									<code class="inline">HOST_HEADER</code>
+								</td>
+								<td>
+									How the portal learns its public origin behind an ingress. Set in the image to
+									<code class="inline">x-forwarded-proto</code> and
+									<code class="inline">x-forwarded-host</code>. See
+									<a href="deployment.html#proxy-headers">deployment</a>.
+								</td>
+							</tr>
+							<tr>
+								<td><code class="inline">PORT</code>, <code class="inline">HOST</code></td>
+								<td>Where the portal listens. Defaults 3000 and 0.0.0.0 in the image.</td>
+							</tr>
+						</tbody>
+					</table>
+				</div>
+				<p>
+					<code class="inline">/api/health</code> answers <code class="inline">ok</code> once the
+					portal is up and is meant for liveness and readiness probes.
+				</p>
+				<h2 id="languages">Interface</h2>
+				<p>
+					The portal looks like the two apps (same components, theme tokens, light, dark and system
+					themes) and speaks English, French and Spanish with the same gettext-style catalogs. The
+					language is remembered in the <code class="inline">multiadmin_lang</code> cookie. The apps
+					keep their own language settings.
+				</p>
+			</main>
+		</div>
+		<footer class="site-footer">
+			<div class="wrap">
+				<div>
+					<a class="brand" href="../"
+						><img src="../assets/logo.svg" alt="" width="28" height="28" /><span
+							>svelteMultiAdmin</span
+						></a
+					>
+					<p style="margin-top: 0.75rem">
+						svelteMultiAdmin is an independent project and is not affiliated with Oracle, MariaDB or
+						Redis Ltd. MySQL, MariaDB and Redis are trademarks of their respective owners.
+					</p>
+				</div>
+				<ul>
+					<li><a href="../docs/">Documentation</a></li>
+					<li><a href="https://github.com/razvn/svelteMultiAdmin">Source on GitHub</a></li>
+					<li><a href="https://github.com/razvn/svelteMultiAdmin/issues">Issues</a></li>
+					<li>
+						<a href="https://github.com/razvn/svelteMultiAdmin/blob/main/LICENSE"
+							>GPL-2.0-or-later</a
+						>
+					</li>
+				</ul>
+			</div>
+		</footer>
+	</body>
+</html>

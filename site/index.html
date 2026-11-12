@@ -1,0 +1,473 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>svelteMultiAdmin - One portal for MySQL and Redis administration</title>
+		<meta
+			name="description"
+			content="svelteMultiAdmin is an open source portal that bundles svelteMyAdmin and svelteRedisAdmin: sign in once (local accounts, OpenID Connect or an SSO proxy), then open either app without a second login. One container, git submodules, access rules and a Kubernetes manifest."
+		/>
+		<meta name="color-scheme" content="light dark" />
+		<meta name="theme-color" content="#6366f1" />
+		<link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
+		<link rel="canonical" href="https://razvn.github.io/svelteMultiAdmin/" />
+		<meta property="og:type" content="website" />
+		<meta property="og:site_name" content="svelteMultiAdmin" />
+		<meta
+			property="og:title"
+			content="svelteMultiAdmin - One portal for MySQL and Redis administration"
+		/>
+		<meta
+			property="og:description"
+			content="svelteMultiAdmin is an open source portal that bundles svelteMyAdmin and svelteRedisAdmin: sign in once (local accounts, OpenID Connect or an SSO proxy), then open either app without a second login. One container, git submodules, access rules and a Kubernetes manifest."
+		/>
+		<meta property="og:url" content="https://razvn.github.io/svelteMultiAdmin/" />
+		<link rel="preconnect" href="https://fonts.googleapis.com" />
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+		<link
+			rel="stylesheet"
+			href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap"
+		/>
+		<link rel="stylesheet" href="styles.css" />
+	</head>
+	<body>
+		<a class="skip" href="#main">Skip to content</a>
+		<header class="site-header">
+			<div class="wrap">
+				<a class="brand" href="#top"
+					><img src="assets/logo.svg" alt="" width="32" height="32" /><span
+						>svelteMultiAdmin</span
+					></a
+				>
+				<nav class="nav" aria-label="Main">
+					<a href="#features">Features</a>
+					<a href="#how">How it works</a>
+					<a href="#screenshots">Screenshots</a>
+					<a href="#quick-start">Quick start</a>
+					<a class="nav-docs" href="docs/">Docs</a>
+					<a class="btn btn-sm" href="https://github.com/razvn/svelteMultiAdmin">GitHub</a>
+				</nav>
+			</div>
+		</header>
+
+		<main id="main">
+			<div class="hero" id="top">
+				<div class="wrap">
+					<span class="eyebrow">Svelte 5 &middot; SvelteKit &middot; MySQL &middot; Redis</span>
+					<h1>One sign-in for your <span class="grad">database administration</span></h1>
+					<p class="lead">
+						svelteMultiAdmin bundles
+						<a href="https://github.com/razvn/svelteMyAdmin">svelteMyAdmin</a> and
+						<a href="https://github.com/razvn/svelteRedisAdmin">svelteRedisAdmin</a> behind one
+						portal. People sign in once &mdash; local accounts, OpenID Connect or your SSO proxy
+						&mdash; and open either app without a second login. One container, one deployment, and
+						each app keeps its own repository.
+					</p>
+					<div class="cta">
+						<a class="btn btn-primary" href="https://github.com/razvn/svelteMultiAdmin"
+							>View on GitHub</a
+						>
+						<a class="btn" href="#quick-start">Quick start</a>
+					</div>
+					<div class="shot hero-shot">
+						<picture
+							><source
+								media="(prefers-color-scheme: dark)"
+								srcset="assets/screenshots/launcher-dark.png" />
+							<img
+								src="assets/screenshots/launcher-light.png"
+								alt="The svelteMultiAdmin launcher with a MySQL card and a Redis card"
+								width="2160"
+								height="1350"
+								fetchpriority="high"
+						/></picture>
+					</div>
+				</div>
+			</div>
+
+			<section id="features">
+				<div class="wrap">
+					<div class="section-head">
+						<span class="kicker">Features</span>
+						<h2>Everything between a person and their databases</h2>
+						<p>
+							The portal does the sign-in and the access decisions; the two apps keep doing what
+							they do best, unchanged apart from a link back.
+						</p>
+					</div>
+					<ul class="grid">
+						<li class="card">
+							<span class="icon"
+								><svg viewBox="0 0 24 24" aria-hidden="true">
+									<circle cx="12" cy="12" r="9" />
+									<path d="m8 12 3 3 5-6" /></svg
+							></span>
+							<h3>Sign in once</h3>
+							<p>
+								Open MySQL or Redis from the launcher with no second login. A short, single-use
+								ticket moves you to the app, and logging out on the portal ends every session.
+							</p>
+						</li>
+						<li class="card">
+							<span class="icon"
+								><svg viewBox="0 0 24 24" aria-hidden="true">
+									<rect x="4" y="10" width="16" height="11" rx="2" />
+									<path d="M8 10V7a4 4 0 0 1 8 0v3" /></svg
+							></span>
+							<h3>Three sign-in modes</h3>
+							<p>
+								<strong>Local accounts</strong> with an admin screen,
+								<strong>OpenID Connect</strong> (code flow with PKCE), or the identity headers of an
+								<strong>SSO proxy</strong> such as oauth2-proxy, trusted only from your proxy&#x27;s
+								addresses.
+							</p>
+						</li>
+						<li class="card">
+							<span class="icon"
+								><svg viewBox="0 0 24 24" aria-hidden="true">
+									<path d="M4 6h16M4 12h10M4 18h6" /></svg
+							></span>
+							<h3>Access rules</h3>
+							<p>
+								Match a group, a user or an email and grant MySQL access, a Redis role (<code
+									class="inline"
+									>ro</code
+								>, <code class="inline">rw</code>, <code class="inline">admin</code>) and the Redis
+								servers a person may see. Rules are recomputed on every request.
+							</p>
+						</li>
+						<li class="card">
+							<span class="icon"
+								><svg viewBox="0 0 24 24" aria-hidden="true">
+									<rect x="3" y="4" width="18" height="16" rx="2" />
+									<path d="M3 10h18M9 4v16" /></svg
+							></span>
+							<h3>One hostname per app</h3>
+							<p>
+								The portal and each app answer on their own hostname, so the apps need no base-path
+								changes and cookies never mix. The apps listen on loopback only.
+							</p>
+						</li>
+						<li class="card">
+							<span class="icon"
+								><svg viewBox="0 0 24 24" aria-hidden="true">
+									<path d="M10 6 4 12l6 6M4 12h16" /></svg
+							></span>
+							<h3>Back to the portal</h3>
+							<p>
+								Each app gets a small, optional <code class="inline">Portal</code> setting that adds
+								&quot;Back to Admin portal&quot; to its user menu. Without it, nothing changes.
+							</p>
+						</li>
+						<li class="card">
+							<span class="icon"
+								><svg viewBox="0 0 24 24" aria-hidden="true">
+									<path d="M12 3v12m0 0-4-4m4 4 4-4M5 21h14" /></svg
+							></span>
+							<h3>Apps stay separate</h3>
+							<p>
+								svelteMyAdmin and svelteRedisAdmin are git submodules pinned to release tags.
+								<code class="inline">pnpm bundle:update</code> moves them to the newest releases and
+								stages the change.
+							</p>
+						</li>
+						<li class="card">
+							<span class="icon"
+								><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3h9v9M21 3 3 21" /></svg
+							></span>
+							<h3>Built for Kubernetes</h3>
+							<p>
+								A ready manifest: discovery of review-namespace databases, SubjectAccessReview
+								checks, config in Secrets, a volume for accounts, and an Ingress with three hosts.
+							</p>
+						</li>
+						<li class="card">
+							<span class="icon"
+								><svg viewBox="0 0 24 24" aria-hidden="true">
+									<circle cx="12" cy="12" r="9" />
+									<path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18" /></svg
+							></span>
+							<h3>Same look, three languages</h3>
+							<p>
+								The portal uses the apps&#x27; design system with light, dark and system themes, and
+								the same English, French and Spanish catalogs. Both apps&#x27; audit logs record the
+								person from the portal.
+							</p>
+						</li>
+					</ul>
+				</div>
+			</section>
+
+			<section id="how" style="padding-top: 0">
+				<div class="wrap">
+					<div class="section-head">
+						<span class="kicker">How it works</span>
+						<h2>The portal in front, the apps on loopback</h2>
+						<p>
+							One container, one process tree. The portal starts and supervises both apps and
+							proxies each request with identity it sets itself.
+						</p>
+					</div>
+					<div class="code">
+						<pre><code>browser ──▶ ingress ──▶ MultiAdmin :3000 ── admin.example.com        portal: login, launcher, user admin
+                              │          ── mysql.admin.example.com  ── gate ──▶ 127.0.0.1:3101 svelteMyAdmin
+                              │          ── redis.admin.example.com  ── gate ──▶ 127.0.0.1:3102 svelteRedisAdmin
+                              └─ starts and supervises both apps</code></pre>
+					</div>
+					<div class="steps">
+						<div>
+							<h3>1. Sign in</h3>
+							<p>
+								On the portal, with an account, your OIDC provider or the headers of your SSO proxy.
+							</p>
+						</div>
+						<div>
+							<h3>2. Get grants</h3>
+							<p>
+								Access rules turn your name, groups and email into what you may open and with which
+								role.
+							</p>
+						</div>
+						<div>
+							<h3>3. Open an app</h3>
+							<p>
+								A 30-second, single-use ticket sets a cookie on the app&rsquo;s hostname. No second
+								login.
+							</p>
+						</div>
+					</div>
+					<p class="note">
+						Read the <a href="docs/security.html">security model</a>: what the portal strips, what
+						it sets, why the apps trust it, and the trade-offs.
+					</p>
+				</div>
+			</section>
+
+			<section id="screenshots" style="padding-top: 0">
+				<div class="wrap">
+					<div class="section-head">
+						<span class="kicker">Screenshots</span>
+						<h2>See it in action</h2>
+						<p>Click any screenshot to enlarge. Each one is available in light and dark.</p>
+					</div>
+					<div class="shots">
+						<button class="shot" type="button" data-shot>
+							<picture
+								><source
+									media="(prefers-color-scheme: dark)"
+									srcset="assets/screenshots/login-dark.png" />
+								<img
+									src="assets/screenshots/login-light.png"
+									alt="The split sign-in page with the logo on a gradient panel"
+									loading="lazy"
+							/></picture>
+						</button>
+						<button class="shot" type="button" data-shot>
+							<picture
+								><source
+									media="(prefers-color-scheme: dark)"
+									srcset="assets/screenshots/launcher-dark.png" />
+								<img
+									src="assets/screenshots/launcher-light.png"
+									alt="The launcher offering MySQL and Redis"
+									loading="lazy"
+							/></picture>
+						</button>
+						<button class="shot" type="button" data-shot>
+							<picture
+								><source
+									media="(prefers-color-scheme: dark)"
+									srcset="assets/screenshots/redis-dark.png" />
+								<img
+									src="assets/screenshots/redis-light.png"
+									alt="svelteRedisAdmin opened through the portal, with Back to Admin portal in the user menu"
+									loading="lazy"
+							/></picture>
+						</button>
+						<button class="shot" type="button" data-shot>
+							<picture
+								><source
+									media="(prefers-color-scheme: dark)"
+									srcset="assets/screenshots/mysql-dark.png" />
+								<img
+									src="assets/screenshots/mysql-light.png"
+									alt="svelteMyAdmin opened through the portal, signed in as admin, with Back to Admin portal in the user menu"
+									loading="lazy"
+							/></picture>
+						</button>
+						<button class="shot" type="button" data-shot>
+							<picture
+								><source
+									media="(prefers-color-scheme: dark)"
+									srcset="assets/screenshots/users-dark.png" />
+								<img
+									src="assets/screenshots/users-light.png"
+									alt="The users page listing accounts with their groups and status"
+									loading="lazy"
+							/></picture>
+						</button>
+					</div>
+				</div>
+			</section>
+
+			<section id="auth">
+				<div class="wrap">
+					<div class="section-head">
+						<span class="kicker">Users &amp; access</span>
+						<h2>Who may open what, decided in one place</h2>
+						<p>
+							The portal decides at the door, and the apps still enforce their own rules behind it.
+						</p>
+					</div>
+					<ul class="checks">
+						<li>
+							<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10" /></svg
+							><span
+								><strong>Rules, not per-app accounts.</strong> One list of rules maps groups, users
+								and emails to MySQL access and to a Redis role and server list.
+								<a href="docs/access.html">Read the guide</a>.</span
+							>
+						</li>
+						<li>
+							<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10" /></svg
+							><span
+								><strong>Forged headers do nothing.</strong> The apps trust identity only from
+								loopback; the portal removes every identity or forwarding header a client sends
+								before setting its own. <a href="docs/security.html">Security model</a>.</span
+							>
+						</li>
+						<li>
+							<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10" /></svg
+							><span
+								><strong>Access ends when it should.</strong> Sessions live in the portal: disabling
+								a user, or a proxy session ending, applies on the next request on every host.</span
+							>
+						</li>
+						<li>
+							<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10" /></svg
+							><span
+								><strong>The real client in the apps&#x27; audit logs.</strong> Behind an SSO proxy
+								the portal resolves the client address from
+								<code class="inline">X-Forwarded-For</code> through your trusted proxies.
+								<a href="docs/audit.html">Audit log</a>.</span
+							>
+						</li>
+						<li>
+							<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10" /></svg
+							><span
+								><strong>Kubernetes checks stay with the apps.</strong> The person&#x27;s name and
+								groups reach svelteMyAdmin and svelteRedisAdmin for their SubjectAccessReview
+								checks. <a href="docs/kubernetes.html">Kubernetes</a>.</span
+							>
+						</li>
+					</ul>
+				</div>
+			</section>
+
+			<section id="stack">
+				<div class="wrap">
+					<div class="section-head">
+						<span class="kicker">Built with</span>
+						<h2>A modern, typed stack</h2>
+					</div>
+					<ul class="stack">
+						<li>Svelte 5</li>
+						<li>SvelteKit</li>
+						<li>TypeScript</li>
+						<li>Tailwind CSS</li>
+						<li>shadcn-svelte</li>
+						<li>openid-client</li>
+						<li>zod</li>
+						<li>Vitest &amp; Playwright</li>
+					</ul>
+				</div>
+			</section>
+
+			<section id="quick-start" style="padding-top: 0">
+				<div class="wrap">
+					<div class="section-head">
+						<span class="kicker">Quick start</span>
+						<h2>Up and running with Docker</h2>
+					</div>
+					<div class="code">
+						<pre><code># fetch the portal with both apps (git submodules)
+git clone --recurse-submodules https://github.com/razvn/svelteMultiAdmin.git
+cd svelteMultiAdmin
+
+# describe your three applications, then build and run
+cp config.sample.json multiadmin.json
+docker build -t multiadmin .
+docker run -p 3000:3000 \
+  -v ./multiadmin.json:/config/multiadmin.json \
+  -v ./myadmin.json:/config/myadmin.json \
+  -v ./redisadmin.json:/config/redisadmin.json \
+  -v multiadmin-data:/data \
+  -e MULTIADMIN_BOOTSTRAP_PASSWORD=change-me multiadmin</code></pre>
+					</div>
+					<p class="note">
+						Open the portal, sign in as <code class="inline">admin</code> and add accounts on the
+						Users page. The apps need three hostnames and a proxy that sends
+						<code class="inline">x-forwarded-proto</code>; see
+						<a href="docs/deployment.html">Deployment</a>, or
+						<a href="docs/kubernetes.html">Kubernetes</a> for a ready manifest. The apps are
+						documented at
+						<a href="https://razvn.github.io/svelteRedisAdmin/docs/">svelteRedisAdmin</a> and
+						<a href="https://razvn.github.io/svelteMyAdmin/docs/">svelteMyAdmin</a>.
+					</p>
+				</div>
+			</section>
+		</main>
+
+		<footer class="site-footer">
+			<div class="wrap">
+				<div>
+					<a class="brand" href="./"
+						><img src="assets/logo.svg" alt="" width="28" height="28" /><span
+							>svelteMultiAdmin</span
+						></a
+					>
+					<p style="margin-top: 0.75rem">
+						svelteMultiAdmin is an independent project and is not affiliated with Oracle, MariaDB or
+						Redis Ltd. MySQL, MariaDB and Redis are trademarks of their respective owners.
+					</p>
+				</div>
+				<ul>
+					<li><a href="docs/">Documentation</a></li>
+					<li><a href="https://github.com/razvn/svelteMultiAdmin">Source on GitHub</a></li>
+					<li><a href="https://github.com/razvn/svelteMultiAdmin/issues">Issues</a></li>
+					<li>
+						<a href="https://github.com/razvn/svelteMultiAdmin/blob/main/LICENSE"
+							>GPL-2.0-or-later</a
+						>
+					</li>
+				</ul>
+			</div>
+		</footer>
+
+		<dialog class="lightbox" id="lightbox" aria-label="Screenshot preview">
+			<button class="close" type="button" aria-label="Close preview">&times;</button>
+			<div id="lightbox-body"></div>
+		</dialog>
+
+		<script>
+			(function () {
+				var dlg = document.getElementById('lightbox');
+				if (!dlg || !dlg.showModal) return;
+				var body = document.getElementById('lightbox-body');
+				document.querySelectorAll('[data-shot]').forEach(function (btn) {
+					btn.addEventListener('click', function () {
+						body.innerHTML = btn.querySelector('picture').outerHTML.replace(' loading="lazy"', '');
+						dlg.showModal();
+					});
+				});
+				dlg.querySelector('.close').addEventListener('click', function () {
+					dlg.close();
+				});
+				dlg.addEventListener('click', function (e) {
+					if (e.target === dlg) dlg.close();
+				});
+			})();
+		</script>
+	</body>
+</html>

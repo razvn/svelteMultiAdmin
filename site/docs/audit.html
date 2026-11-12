@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Audit log - svelteMultiAdmin docs</title>
+		<meta
+			name="description"
+			content="How svelteMultiAdmin identity reaches the audit logs of svelteMyAdmin and svelteRedisAdmin."
+		/>
+		<meta name="color-scheme" content="light dark" />
+		<meta name="theme-color" content="#6366f1" />
+		<link rel="icon" type="image/svg+xml" href="../assets/favicon.svg" />
+		<link rel="canonical" href="https://razvn.github.io/svelteMultiAdmin/docs/audit.html" />
+		<link rel="preconnect" href="https://fonts.googleapis.com" />
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+		<link
+			rel="stylesheet"
+			href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap"
+		/>
+		<link rel="stylesheet" href="../styles.css" />
+	</head>
+	<body>
+		<a class="skip" href="#main">Skip to content</a>
+		<header class="site-header">
+			<div class="wrap">
+				<a class="brand" href="../"
+					><img src="../assets/logo.svg" alt="" width="32" height="32" /><span
+						>svelteMultiAdmin</span
+					></a
+				>
+				<nav class="nav" aria-label="Main">
+					<a href="../#features">Features</a>
+					<a href="../#quick-start">Quick start</a>
+					<a class="nav-docs" href="../docs/" aria-current="page">Docs</a>
+					<a class="btn btn-sm" href="https://github.com/razvn/svelteMultiAdmin">GitHub</a>
+				</nav>
+			</div>
+		</header>
+		<div class="wrap docs">
+			<nav class="docs-nav" aria-label="Documentation">
+				<h2>Getting started</h2>
+				<ul>
+					<li><a href="./">Overview</a></li>
+				</ul>
+				<h2>Sign-in and access</h2>
+				<ul>
+					<li><a href="authentication.html">Authentication</a></li>
+					<li><a href="access.html">Access rules</a></li>
+				</ul>
+				<h2>Operations</h2>
+				<ul>
+					<li><a href="deployment.html">Deployment</a></li>
+					<li><a href="kubernetes.html">Kubernetes</a></li>
+					<li><a href="audit.html" aria-current="page">Audit log</a></li>
+					<li><a href="updating.html">Updating the apps</a></li>
+				</ul>
+				<h2>Design</h2>
+				<ul>
+					<li><a href="security.html">Security model</a></li>
+				</ul>
+			</nav>
+			<main id="main" class="doc">
+				<h1>Audit log</h1>
+				<p>
+					The portal has no audit log of its own. The two apps already record who did what, and the
+					portal gives them everything they need: the person&#x27;s name, their role or account, and
+					the real client address.
+				</p>
+				<p>
+					Everyone behind the portal shares one account per database (one Redis password, one MySQL
+					user), so the database cannot tell them apart. Turn on
+					<code class="inline">AuditLog</code> in each app&#x27;s own configuration to record the
+					person:
+				</p>
+				<pre><code>{ &quot;AuditLog&quot;: { &quot;target&quot;: &quot;stdout&quot; } }</code></pre>
+				<p>
+					One JSON line per session, write, console line, export, import and refusal. These are real
+					lines from a portal with both apps (an administrator opening each app):
+				</p>
+				<pre><code>{&quot;ts&quot;:&quot;2026-11-12T10:27:23.674Z&quot;,&quot;event&quot;:&quot;session&quot;,&quot;identity&quot;:&quot;admin&quot;,&quot;role&quot;:&quot;admin&quot;,&quot;server&quot;:&quot;Dev redis1&quot;,&quot;serverId&quot;:&quot;0&quot;,&quot;clientIp&quot;:&quot;127.0.0.1&quot;}
+{&quot;ts&quot;:&quot;2026-11-12T10:27:23.982Z&quot;,&quot;event&quot;:&quot;session&quot;,&quot;identity&quot;:&quot;admin&quot;,&quot;mysqlUser&quot;:&quot;root&quot;,&quot;server&quot;:&quot;Local MySQL&quot;,&quot;serverId&quot;:&quot;1&quot;,&quot;clientIp&quot;:&quot;127.0.0.1&quot;}</code></pre>
+				<ul>
+					<li>
+						<code class="inline">identity</code> is the person&#x27;s name as the portal knows it,
+						whatever the sign-in mode.
+					</li>
+					<li>
+						<code class="inline">role</code> (Redis) is the role from the access rules.
+						<code class="inline">mysqlUser</code> (MySQL) is the shared account the app connected
+						with.
+					</li>
+					<li>
+						<code class="inline">clientIp</code> is the real client address. Behind an SSO proxy the
+						portal resolves it from <code class="inline">X-Forwarded-For</code> through your
+						<code class="inline">trustedProxies</code>, and passes it on; otherwise it is the
+						browser&#x27;s address.
+					</li>
+					<li>
+						A refused request (no access to a server, a forged header) is logged with a reason,
+						without an identity when nobody was verified.
+					</li>
+				</ul>
+				<p>
+					Options (a file instead of stdout, values, retention) and the full list of events are in
+					the apps&#x27; guides:
+					<a href="https://razvn.github.io/svelteRedisAdmin/docs/audit.html"
+						>svelteRedisAdmin audit log</a
+					>
+					and
+					<a href="https://razvn.github.io/svelteMyAdmin/docs/audit.html">svelteMyAdmin audit log</a
+					>. In Kubernetes,
+					<code class="inline">kubectl -n tools logs deploy/multiadmin</code> shows both apps, each
+					line prefixed with its app name by the portal.
+				</p>
+			</main>
+		</div>
+		<footer class="site-footer">
+			<div class="wrap">
+				<div>
+					<a class="brand" href="../"
+						><img src="../assets/logo.svg" alt="" width="28" height="28" /><span
+							>svelteMultiAdmin</span
+						></a
+					>
+					<p style="margin-top: 0.75rem">
+						svelteMultiAdmin is an independent project and is not affiliated with Oracle, MariaDB or
+						Redis Ltd. MySQL, MariaDB and Redis are trademarks of their respective owners.
+					</p>
+				</div>
+				<ul>
+					<li><a href="../docs/">Documentation</a></li>
+					<li><a href="https://github.com/razvn/svelteMultiAdmin">Source on GitHub</a></li>
+					<li><a href="https://github.com/razvn/svelteMultiAdmin/issues">Issues</a></li>
+					<li>
+						<a href="https://github.com/razvn/svelteMultiAdmin/blob/main/LICENSE"
+							>GPL-2.0-or-later</a
+						>
+					</li>
+				</ul>
+			</div>
+		</footer>
+	</body>
+</html>

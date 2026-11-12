@@ -151,6 +151,18 @@ PORT=3000 node build
 A browser does not send `x-forwarded-proto`, so for plain http put a small proxy in front that adds
 `x-forwarded-proto: http` (or use https).
 
+## Documentation site
+
+`site/` holds the presentation site and the documentation (static HTML, same design as the apps' sites). It is
+deployed to **GitHub Pages** on every push to `main` that touches `site/` (see
+`.github/workflows/pages.yml`). To regenerate the screenshots, run the portal with both apps and sign in
+with an account that has every grant:
+
+```sh
+pnpm exec playwright install chromium   # once
+SITE_PASSWORD=... SITE_FORWARD_PROTO=http pnpm site:screenshots
+```
+
 ## Interface
 
 The portal looks like the two apps (same shadcn-svelte components, theme tokens, light/dark/system theme,

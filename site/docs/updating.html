@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Updating the apps - svelteMultiAdmin docs</title>
+		<meta
+			name="description"
+			content="svelteMyAdmin and svelteRedisAdmin are git submodules of svelteMultiAdmin, pinned to release tags and updated with one command."
+		/>
+		<meta name="color-scheme" content="light dark" />
+		<meta name="theme-color" content="#6366f1" />
+		<link rel="icon" type="image/svg+xml" href="../assets/favicon.svg" />
+		<link rel="canonical" href="https://razvn.github.io/svelteMultiAdmin/docs/updating.html" />
+		<link rel="preconnect" href="https://fonts.googleapis.com" />
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+		<link
+			rel="stylesheet"
+			href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap"
+		/>
+		<link rel="stylesheet" href="../styles.css" />
+	</head>
+	<body>
+		<a class="skip" href="#main">Skip to content</a>
+		<header class="site-header">
+			<div class="wrap">
+				<a class="brand" href="../"
+					><img src="../assets/logo.svg" alt="" width="32" height="32" /><span
+						>svelteMultiAdmin</span
+					></a
+				>
+				<nav class="nav" aria-label="Main">
+					<a href="../#features">Features</a>
+					<a href="../#quick-start">Quick start</a>
+					<a class="nav-docs" href="../docs/" aria-current="page">Docs</a>
+					<a class="btn btn-sm" href="https://github.com/razvn/svelteMultiAdmin">GitHub</a>
+				</nav>
+			</div>
+		</header>
+		<div class="wrap docs">
+			<nav class="docs-nav" aria-label="Documentation">
+				<h2>Getting started</h2>
+				<ul>
+					<li><a href="./">Overview</a></li>
+				</ul>
+				<h2>Sign-in and access</h2>
+				<ul>
+					<li><a href="authentication.html">Authentication</a></li>
+					<li><a href="access.html">Access rules</a></li>
+				</ul>
+				<h2>Operations</h2>
+				<ul>
+					<li><a href="deployment.html">Deployment</a></li>
+					<li><a href="kubernetes.html">Kubernetes</a></li>
+					<li><a href="audit.html">Audit log</a></li>
+					<li><a href="updating.html" aria-current="page">Updating the apps</a></li>
+				</ul>
+				<h2>Design</h2>
+				<ul>
+					<li><a href="security.html">Security model</a></li>
+				</ul>
+			</nav>
+			<main id="main" class="doc">
+				<h1>Updating the apps</h1>
+				<p>
+					svelteMultiAdmin does not contain the apps&#x27; code.
+					<code class="inline">vendor/svelteMyAdmin</code> and
+					<code class="inline">vendor/svelteRedisAdmin</code> are git submodules of their own
+					repositories, pinned to release tags, so each app keeps its own life and the bundle
+					follows their releases.
+				</p>
+				<pre><code>pnpm bundle:update                          # both apps to their newest v* tag
+pnpm bundle:update redisadmin --to v0.3.1   # one app, a specific tag (also to go back)
+pnpm bundle:update --dry-run                # show what would change
+git diff --cached &amp;&amp; git commit             # the script only stages</code></pre>
+				<h2 id="does">What it does</h2>
+				<ul>
+					<li>Adds the submodule first if it is not there yet.</li>
+					<li>
+						Fetches the tags and picks the highest semver <code class="inline">v*</code> release.
+						Pre-releases and tags like <code class="inline">latest</code> are ignored.
+						<code class="inline">v0.10.0</code> is newer than <code class="inline">v0.9.0</code>.
+					</li>
+					<li>Checks the tag out, stages the new pin and prints the commits in between.</li>
+					<li>
+						It <strong>never commits</strong>: review <code class="inline">git diff --cached</code>,
+						then commit.
+					</li>
+					<li>It is idempotent: at the requested tag it changes nothing.</li>
+					<li>
+						It refuses a submodule with local changes, an unknown tag, and a repository with no
+						release tag yet (it says so: tag a release first).
+					</li>
+					<li>
+						It warns when the pinned app has no <code class="inline">Portal</code> configuration
+						key, which means no back-link to the portal in its menu.
+					</li>
+					<li>
+						One app failing does not stop the other; the command exits non-zero if any failed, so CI
+						can notice.
+					</li>
+				</ul>
+				<h2 id="release">Releasing</h2>
+				<p>
+					The bundle is only as new as the tags of the apps. Merge the work in an app, tag a release
+					there (<code class="inline">v0.1.0</code>), then run
+					<code class="inline">pnpm bundle:update</code> in svelteMultiAdmin and commit the new pin.
+					The Dockerfile builds each app from its own lockfile, so the bundle always runs the
+					dependencies that release was tested with.
+				</p>
+				<h2 id="clone">Cloning the bundle</h2>
+				<pre><code>git clone --recurse-submodules https://github.com/razvn/svelteMultiAdmin.git
+# or, in an existing clone:
+git submodule update --init</code></pre>
+			</main>
+		</div>
+		<footer class="site-footer">
+			<div class="wrap">
+				<div>
+					<a class="brand" href="../"
+						><img src="../assets/logo.svg" alt="" width="28" height="28" /><span
+							>svelteMultiAdmin</span
+						></a
+					>
+					<p style="margin-top: 0.75rem">
+						svelteMultiAdmin is an independent project and is not affiliated with Oracle, MariaDB or
+						Redis Ltd. MySQL, MariaDB and Redis are trademarks of their respective owners.
+					</p>
+				</div>
+				<ul>
+					<li><a href="../docs/">Documentation</a></li>
+					<li><a href="https://github.com/razvn/svelteMultiAdmin">Source on GitHub</a></li>
+					<li><a href="https://github.com/razvn/svelteMultiAdmin/issues">Issues</a></li>
+					<li>
+						<a href="https://github.com/razvn/svelteMultiAdmin/blob/main/LICENSE"
+							>GPL-2.0-or-later</a
+						>
+					</li>
+				</ul>
+			</div>
+		</footer>
+	</body>
+</html>

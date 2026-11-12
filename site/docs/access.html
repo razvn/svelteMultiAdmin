@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Access rules - svelteMultiAdmin docs</title>
+		<meta
+			name="description"
+			content="How svelteMultiAdmin turns a user, groups and email into access to MySQL and Redis, with roles and per-server access."
+		/>
+		<meta name="color-scheme" content="light dark" />
+		<meta name="theme-color" content="#6366f1" />
+		<link rel="icon" type="image/svg+xml" href="../assets/favicon.svg" />
+		<link rel="canonical" href="https://razvn.github.io/svelteMultiAdmin/docs/access.html" />
+		<link rel="preconnect" href="https://fonts.googleapis.com" />
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+		<link
+			rel="stylesheet"
+			href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap"
+		/>
+		<link rel="stylesheet" href="../styles.css" />
+	</head>
+	<body>
+		<a class="skip" href="#main">Skip to content</a>
+		<header class="site-header">
+			<div class="wrap">
+				<a class="brand" href="../"
+					><img src="../assets/logo.svg" alt="" width="32" height="32" /><span
+						>svelteMultiAdmin</span
+					></a
+				>
+				<nav class="nav" aria-label="Main">
+					<a href="../#features">Features</a>
+					<a href="../#quick-start">Quick start</a>
+					<a class="nav-docs" href="../docs/" aria-current="page">Docs</a>
+					<a class="btn btn-sm" href="https://github.com/razvn/svelteMultiAdmin">GitHub</a>
+				</nav>
+			</div>
+		</header>
+		<div class="wrap docs">
+			<nav class="docs-nav" aria-label="Documentation">
+				<h2>Getting started</h2>
+				<ul>
+					<li><a href="./">Overview</a></li>
+				</ul>
+				<h2>Sign-in and access</h2>
+				<ul>
+					<li><a href="authentication.html">Authentication</a></li>
+					<li><a href="access.html" aria-current="page">Access rules</a></li>
+				</ul>
+				<h2>Operations</h2>
+				<ul>
+					<li><a href="deployment.html">Deployment</a></li>
+					<li><a href="kubernetes.html">Kubernetes</a></li>
+					<li><a href="audit.html">Audit log</a></li>
+					<li><a href="updating.html">Updating the apps</a></li>
+				</ul>
+				<h2>Design</h2>
+				<ul>
+					<li><a href="security.html">Security model</a></li>
+				</ul>
+			</nav>
+			<main id="main" class="doc">
+				<h1>Access rules</h1>
+				<p>
+					<code class="inline">access</code> is a list of rules. A rule matches people and adds
+					grants. Every request, the portal merges the grants of all matching rules for the person.
+				</p>
+				<pre><code>&quot;access&quot;: [
+	{
+		&quot;match&quot;: { &quot;group&quot;: &quot;platform-admins&quot; },
+		&quot;grants&quot;: { &quot;myadmin&quot;: true, &quot;redisadmin&quot;: { &quot;role&quot;: &quot;admin&quot; }, &quot;userAdmin&quot;: true }
+	},
+	{ &quot;match&quot;: { &quot;group&quot;: &quot;devs&quot; }, &quot;grants&quot;: { &quot;redisadmin&quot;: { &quot;role&quot;: &quot;rw&quot;, &quot;servers&quot;: [&quot;Dev redis1&quot;] } } },
+	{ &quot;match&quot;: { &quot;email&quot;: &quot;carol@example.com&quot; }, &quot;grants&quot;: { &quot;myadmin&quot;: true } },
+	{ &quot;match&quot;: { &quot;group&quot;: &quot;*&quot; }, &quot;grants&quot;: { &quot;redisadmin&quot;: { &quot;role&quot;: &quot;ro&quot; } } }
+]</code></pre>
+				<h2 id="match">Matching</h2>
+				<p>Each rule has a <code class="inline">match</code> with exactly one of:</p>
+				<ul>
+					<li>
+						<code class="inline">group</code>: the person is in this group.
+						<code class="inline">&quot;*&quot;</code> matches everyone.
+					</li>
+					<li><code class="inline">user</code>: the user name, exactly.</li>
+					<li><code class="inline">email</code>: the email address, case-insensitively.</li>
+				</ul>
+				<h2 id="grants">Grants</h2>
+				<div class="table-scroll">
+					<table>
+						<thead>
+							<tr>
+								<th>Grant</th>
+								<th>Effect</th>
+							</tr>
+						</thead>
+						<tbody>
+							<tr>
+								<td><code class="inline">&quot;myadmin&quot;: true</code></td>
+								<td>
+									May open svelteMyAdmin. Access is all or nothing: the app connects with the
+									server&#x27;s configured MySQL account for everyone. Narrow it with the app&#x27;s
+									Kubernetes access checks if you use discovery.
+								</td>
+							</tr>
+							<tr>
+								<td>
+									<code class="inline"
+										>&quot;redisadmin&quot;: { &quot;role&quot;: &quot;ro&quot; | &quot;rw&quot; |
+										&quot;admin&quot;, &quot;servers&quot;: [...] }</code
+									>
+								</td>
+								<td>
+									May open svelteRedisAdmin with that role.
+									<code class="inline">servers</code> lists Redis server <strong>names</strong> (the
+									<code class="inline">name</code> of each server in
+									<code class="inline">redisadmin.json</code>); omit it for all servers. A name the
+									app does not have grants nothing. The role is always sent to the app, so it never
+									falls back to its &quot;admin&quot; default.
+								</td>
+							</tr>
+							<tr>
+								<td><code class="inline">&quot;userAdmin&quot;: true</code></td>
+								<td>
+									May manage local accounts on the Users page. Only effective with
+									<code class="inline">local</code> authentication.
+								</td>
+							</tr>
+						</tbody>
+					</table>
+				</div>
+				<h2 id="merge">How rules combine</h2>
+				<ul>
+					<li><code class="inline">myadmin</code> is granted if any matching rule grants it.</li>
+					<li>
+						The Redis role is the highest of the matching rules (<code class="inline">ro</code> &lt;
+						<code class="inline">rw</code> &lt; <code class="inline">admin</code>).
+					</li>
+					<li>
+						Redis servers are the union of the matching rules&#x27; lists. A rule with no
+						<code class="inline">servers</code> means all of them and wins over any list. A matching
+						rule with an empty list adds nothing.
+					</li>
+					<li>
+						Nothing matching means no access: the launcher says so and a direct link answers 403.
+					</li>
+				</ul>
+				<div class="callout">
+					<p>
+						Rules are read when the portal starts. Group changes of a local user apply on their next
+						click; for OIDC at their next sign-in; for trusted headers on the next request.
+					</p>
+				</div>
+				<h2 id="what-apps-do">What the apps still decide</h2>
+				<ul>
+					<li>
+						svelteRedisAdmin enforces the role on every destructive action, and answers 404 for
+						servers outside the list.
+					</li>
+					<li>
+						Both apps run their own Kubernetes SubjectAccessReview checks for discovered servers,
+						using the person&#x27;s name and groups from the portal, when you configure
+						<code class="inline">authorize</code>. See the apps&#x27; docs:
+						<a href="https://razvn.github.io/svelteRedisAdmin/docs/kubernetes.html"
+							>svelteRedisAdmin</a
+						>, <a href="https://razvn.github.io/svelteMyAdmin/docs/signon.html">svelteMyAdmin</a>.
+					</li>
+				</ul>
+			</main>
+		</div>
+		<footer class="site-footer">
+			<div class="wrap">
+				<div>
+					<a class="brand" href="../"
+						><img src="../assets/logo.svg" alt="" width="28" height="28" /><span
+							>svelteMultiAdmin</span
+						></a
+					>
+					<p style="margin-top: 0.75rem">
+						svelteMultiAdmin is an independent project and is not affiliated with Oracle, MariaDB or
+						Redis Ltd. MySQL, MariaDB and Redis are trademarks of their respective owners.
+					</p>
+				</div>
+				<ul>
+					<li><a href="../docs/">Documentation</a></li>
+					<li><a href="https://github.com/razvn/svelteMultiAdmin">Source on GitHub</a></li>
+					<li><a href="https://github.com/razvn/svelteMultiAdmin/issues">Issues</a></li>
+					<li>
+						<a href="https://github.com/razvn/svelteMultiAdmin/blob/main/LICENSE"
+							>GPL-2.0-or-later</a
+						>
+					</li>
+				</ul>
+			</div>
+		</footer>
+	</body>
+</html>
