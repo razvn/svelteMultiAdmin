@@ -1,0 +1,4 @@
+# The bundled apps are separate repositories with their own tooling.
+vendor
+build
+.svelte-kit

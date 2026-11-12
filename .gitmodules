@@ -1,0 +1,6 @@
+[submodule "vendor/svelteMyAdmin"]
+	path = vendor/svelteMyAdmin
+	url = https://github.com/razvn/svelteMyAdmin.git
+[submodule "vendor/svelteRedisAdmin"]
+	path = vendor/svelteRedisAdmin
+	url = https://github.com/razvn/svelteRedisAdmin.git
